@@ -766,45 +766,16 @@ void print_all_resources(void)
 	spin_unlock(&pid_hash_lock);
 }
 
-void next_core(uint32_t pcoreid)
+void next_core_to_alloc(uint32_t pcoreid)
 {
-	struct sched_pcore *spc_i;
-	bool match = FALSE;
 	spin_lock(&sched_lock);
-	TAILQ_FOREACH(spc_i, &idlecores, alloc_next) {
-		if (spc2pcoreid(spc_i) == pcoreid) {
-			match = TRUE;
-			break;
-		}
-	}
-	if (match) {
-		TAILQ_REMOVE(&idlecores, spc_i, alloc_next);
-		TAILQ_INSERT_HEAD(&idlecores, spc_i, alloc_next);
-		printk("Pcore %d will be given out next (from the idles)\n", pcoreid);
-	}
+	__next_core_to_alloc(pcoreid);
 	spin_unlock(&sched_lock);
 }
 
-void sort_idles(void)
+void sort_idle_cores(void)
 {
-	struct sched_pcore *spc_i, *spc_j, *temp;
-	struct sched_pcore_tailq sorter = TAILQ_HEAD_INITIALIZER(sorter);
-	bool added;
 	spin_lock(&sched_lock);
-	TAILQ_CONCAT(&sorter, &idlecores, alloc_next);
-	TAILQ_FOREACH_SAFE(spc_i, &sorter, alloc_next, temp) {
-		TAILQ_REMOVE(&sorter, spc_i, alloc_next);
-		added = FALSE;
-		/* don't need foreach_safe since we break after we muck with the list */
-		TAILQ_FOREACH(spc_j, &idlecores, alloc_next) {
-			if (spc_i < spc_j) {
-				TAILQ_INSERT_BEFORE(spc_j, spc_i, alloc_next);
-				added = TRUE;
-				break;
-			}
-		}
-		if (!added)
-			TAILQ_INSERT_TAIL(&idlecores, spc_i, alloc_next);
-	}
+	__sort_idle_cores();
 	spin_unlock(&sched_lock);
 }
