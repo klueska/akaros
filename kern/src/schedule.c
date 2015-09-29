@@ -579,8 +579,8 @@ static void __core_request(struct proc *p, uint32_t amt_needed)
 		 * it must be provisioned to p, but not allocated to it. We need to try
 		 * to preempt. After this block, the core will be track_dealloc'd and
 		 * on the idle list (regardless of whether we had to preempt or not) */
-		if (spc_i->alloc_proc) {
-			proc_to_preempt = spc_i->alloc_proc;
+		if (get_alloc_proc(spc_i)) {
+			proc_to_preempt = get_alloc_proc(spc_i);
 			/* would break both preemption and maybe the later decref */
 			assert(proc_to_preempt != p);
 			/* need to keep a valid, external ref when we unlock */
@@ -596,7 +596,7 @@ static void __core_request(struct proc *p, uint32_t amt_needed)
 				 * idle CBs).  the core is not on the idle core list.  (if we
 				 * ever have proc alloc lists, it'll still be on the old proc's
 				 * list). */
-				assert(spc_i->alloc_proc);
+				assert(get_alloc_proc(spc_i));
 				/* regardless of whether or not it is still prov to p, we need
 				 * to note its dealloc.  we are doing some excessive checking of
 				 * p == prov_proc, but using this helper is a lot clearer. */
@@ -606,7 +606,7 @@ static void __core_request(struct proc *p, uint32_t amt_needed)
 				 * unmapped (could be dying, could be yielding, but NOT
 				 * preempted).  whoever unmapped it also triggered (or will soon
 				 * trigger) a track_core_dealloc and put it on the idle list.  our
-				 * signal for this is spc_i->alloc_proc being 0.  We need to
+				 * signal for this is get_alloc_proc() being 0.  We need to
 				 * spin and let whoever is trying to free the core grab the
 				 * ksched lock.  We could use an 'ignore_next_idle' flag per
 				 * sched_pcore, but it's not critical anymore.
@@ -618,7 +618,7 @@ static void __core_request(struct proc *p, uint32_t amt_needed)
 				 * allocator, the pcore could have been put on the idle list and
 				 * then quickly removed/allocated. */
 				cmb();
-				while (spc_i->alloc_proc) {
+				while (get_alloc_proc(spc_i)) {
 					/* this loop should be very rare */
 					spin_unlock(&sched_lock);
 					udelay(1);
@@ -629,7 +629,7 @@ static void __core_request(struct proc *p, uint32_t amt_needed)
 			proc_decref(proc_to_preempt);
 			/* might not be prov to p anymore (rare race).  spc_i is idle - we
 			 * might get it later, or maybe we'll give it to its rightful proc*/
-			if (spc_i->prov_proc != p)
+			if (get_prov_proc(spc_i) != p)
 				continue;
 		}
 		/* At this point, the pcore is idle, regardless of how we got here
