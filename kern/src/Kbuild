@@ -37,6 +37,7 @@ obj-y						+= multiboot.o
 obj-y						+= net/
 obj-y						+= ns/
 obj-y						+= oprofile/
+obj-$(CONFIG_PACKED_COREALLOC) += packed_corealloc.o
 obj-y						+= page_alloc.o
 obj-y						+= pagemap.o
 obj-y						+= pmap.o
