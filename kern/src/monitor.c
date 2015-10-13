@@ -1186,19 +1186,19 @@ usage:
 		return 1;
 	}
 	if (!strcmp(argv[1], "idles")) {
-		print_idlecoremap();
+		print_idle_core_map();
 	} else if (!strcmp(argv[1], "diag")) {
 		sched_diag();
 	} else if (!strcmp(argv[1], "resources")) {
 		print_all_resources();
 	} else if (!strcmp(argv[1], "sort")) {
-		sort_idles();
+		sort_idle_cores();
 	} else if (!strcmp(argv[1], "nc")) {
 		if (argc != 3) {
 			printk("Need a pcore number.\n");
 			return 1;
 		}
-		next_core(strtol(argv[2], 0, 0));
+		next_core_to_alloc(strtol(argv[2], 0, 0));
 	} else {
 		printk("Bad option %s\n", argv[1]);
 		goto usage;

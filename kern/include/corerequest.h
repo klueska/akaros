@@ -1,0 +1,99 @@
+/*
+ * Copyright (c) 2015 The Regents of the University of California
+ * Valmon Leymarie <leymariv@berkeley.edu>
+ * Kevin Klues <klueska@cs.berkeley.edu>
+ * See LICENSE for details.
+ */
+
+#ifndef AKAROS_KERN_COREREQUEST_H
+#define AKAROS_KERN_COREREQUEST_H
+
+#include <stdbool.h>
+#include <arch/topology.h>
+#if defined(CONFIG_FCFS_COREALLOC)
+  #include <fcfs_corealloc.h>
+#elif defined(CONFIG_PACKED_COREALLOC)
+  #include <packed_corealloc.h>
+#endif
+
+/* Initialize any data assocaited with doing core allocation. */
+void corealloc_init(void);
+
+/* Initialize any data associated with allocating cores to a process. */
+void corealloc_proc_init(struct proc *p);
+
+/* Find the best core to allocate to a process as dictated by the core
+ * allocation algorithm. This code assumes that the scheduler that uses it
+ * holds a lock for the duration of the call. */
+struct sched_pcore *__find_best_core_to_alloc(struct proc *p);
+
+/* Track the pcore properly when it is allocated to p. This code assumes that
+ * the scheduler that uses it holds a lock for the duration of the call. */
+void __track_core_alloc(struct proc *p, uint32_t pcoreid);
+
+/* Track the pcore properly when it is deallocated from p. This code assumes
+ * that the scheduler that uses it holds a lock for the duration of the call.
+ * */
+void __track_core_dealloc(struct proc *p, uint32_t pcoreid);
+
+/* Bulk interface for __track_core_dealloc */
+void __track_core_dealloc_bulk(struct proc *p, uint32_t *pc_arr,
+                               uint32_t nr_cores);
+
+/* Get/Put an idle core from our pcore list and return its core_id. Don't
+ * consider the chosen core in the future when handing out cores to a
+ * process. This code assumes that the scheduler that uses it holds a lock
+ * for the duration of the call. This will not give out provisioned cores.
+ * The gets return the coreid on success, -1 or -error on failure. */
+int __get_any_idle_core(void);
+int __get_specific_idle_core(int coreid);
+void __put_idle_core(int coreid);
+
+/* One off functions to make 'pcoreid' the next core chosen by the core
+ * allocation algorithm (so long as no provisioned cores are still idle), and
+ * to sort the idle core list for debugging. This code assumes that the
+ * scheduler that uses it holds a lock for the duration of the call. */
+void __next_core_to_alloc(uint32_t pcoreid);
+void __sort_idle_cores(void);
+
+/* Provision a core to proc p. This code assumes that the scheduler that uses
+ * it holds a lock for the duration of the call. */
+void __provision_core(struct proc *p, struct sched_pcore *spc);
+
+/* Unprovision all cores from proc p. This code assumes that the scheduler
+ * that uses * it holds a lock for the duration of the call. */
+void __unprovision_all_cores(struct proc *p);
+
+/* Print the map of idle cores that are still allocatable through our core
+ * allocation algorithm. */
+void print_idle_core_map(void);
+
+/* Print a list of the cores currently provisioned to p. */
+void print_proc_coreprov(struct proc *p);
+
+/* Print the processes attached to each provisioned core. */
+void print_coreprov_map(void);
+
+/* TODO: need more thorough CG/LL management.  For now, core0 is the only LL
+ * core.  This won't play well with the ghetto shit in schedule_init() if you do
+ * anything like 'DEDICATED_MONITOR' or the ARSC server.  All that needs an
+ * overhaul. */
+static inline bool is_ll_core(uint32_t pcoreid)
+{
+	if (pcoreid == 0)
+		return TRUE;
+	return FALSE;
+}
+
+/* Normally it'll be the max number of CG cores ever */
+static inline uint32_t max_vcores(struct proc *p)
+{
+/* TODO: (CG/LL) */
+#ifdef CONFIG_DISABLE_SMT
+	return num_cores >> 1;
+#else
+	return num_cores - 1;	/* reserving core 0 */
+#endif /* CONFIG_DISABLE_SMT */
+}
+
+#endif // AKAROS_KERN_COREREQUEST_H

@@ -11,27 +11,16 @@
 
 #include <ros/common.h>
 #include <sys/queue.h>
+#include <corerequest.h>
 
 struct proc;	/* process.h includes us, but we need pointers now */
 TAILQ_HEAD(proc_list, proc);		/* Declares 'struct proc_list' */
-
-/* The ksched maintains an internal array of these: the global pcore map.  Note
- * the prov_proc and alloc_proc are weak (internal) references, and should only
- * be used as a ref source while the ksched has a valid kref. */
-struct sched_pcore {
-	TAILQ_ENTRY(sched_pcore)	prov_next;			/* on a proc's prov list */
-	TAILQ_ENTRY(sched_pcore)	alloc_next;			/* on an alloc list (idle)*/
-	struct proc					*prov_proc;			/* who this is prov to */
-	struct proc					*alloc_proc;		/* who this is alloc to */
-};
-TAILQ_HEAD(sched_pcore_tailq, sched_pcore);
 
 /* One of these embedded in every struct proc */
 struct sched_proc_data {
 	TAILQ_ENTRY(proc)			proc_link;			/* tailq linkage */
 	struct proc_list 			*cur_list;			/* which tailq we're on */
-	struct sched_pcore_tailq	prov_alloc_me;		/* prov cores alloced us */
-	struct sched_pcore_tailq	prov_not_alloc_me;	/* maybe alloc to others */
+	struct core_request_data	crd;				/* prov/alloc cores */
 	/* count of lists? */
 	/* other accounting info */
 };
@@ -88,10 +77,6 @@ int get_any_idle_core(void);
 int get_specific_idle_core(int coreid);
 void put_idle_core(int coreid);
 
-/************** Proc's view of the world **************/
-/* How many vcores p will think it can have */
-uint32_t max_vcores(struct proc *p);
-
 /************** Provisioning / Allocating *************/
 /* This section is specific to a provisioning ksched.  Careful calling any of
  * this from generic kernel code, since it might not be present in all kernel
@@ -100,11 +85,9 @@ int provision_core(struct proc *p, uint32_t pcoreid);
 
 /************** Debugging **************/
 void sched_diag(void);
-void print_idlecoremap(void);
 void print_resources(struct proc *p);
 void print_all_resources(void);
-void print_prov_map(void);
-void next_core(uint32_t pcoreid);
-void sort_idles(void);
+void next_core_to_alloc(uint32_t pcoreid);
+void sort_idle_cores(void);
 
 #endif /* ROS_KERN_SCHEDULE_H */
