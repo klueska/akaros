@@ -71,6 +71,7 @@ struct sigdata {
  * to implement.  Subject to grow over time. */
 struct signal_ops {
 	int (*sigprocmask)(int, __const sigset_t *__restrict, sigset_t *__restrict);
+	void (*incoming_signal)(int signo);
 };
 extern struct signal_ops *signal_ops;
 void init_posix_signals(void);

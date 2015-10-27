@@ -49,6 +49,7 @@ static void pth_thread_refl_fault(struct uthread *uthread, unsigned int trap_nr,
 /* Event Handlers */
 static void pth_handle_syscall(struct event_msg *ev_msg, unsigned int ev_type,
                                void *data);
+static void pth_incoming_signal(int signo);
 
 struct schedule_ops pthread_sched_ops = {
 	.sched_entry = pth_sched_entry,
@@ -60,6 +61,7 @@ struct schedule_ops pthread_sched_ops = {
 };
 struct signal_ops pthread_signal_ops = {
 	.sigprocmask = pthread_sigmask,
+	.incoming_signal = pth_incoming_signal,
 };
 
 /* Static helpers */
@@ -1305,6 +1307,11 @@ int pthread_kill(pthread_t thread, int signo)
 	// Slightly racy with clearing of mask when triggering the signal, but
 	// that's OK, as signals are inherently racy since they don't queue up.
 	return sigaddset(&thread->sigpending, signo);
+}
+
+static void pth_incoming_signal(int signo)
+{
+	pthread_kill((pthread_t)current_uthread, signo);
 }
 
 int pthread_sigmask(int how, const sigset_t *set, sigset_t *oset)

@@ -24,6 +24,7 @@
  * 	only thing we do is allow the registration of signal handlers. 
  * 	- Check each function for further notes.  */
 
+#include <sched.h>
 #include <signal.h>
 #include <stdio.h>
 
@@ -41,13 +42,18 @@
 /* This is list of sigactions associated with each posix signal. */
 static struct sigaction sigactions[_NSIG];
 
+/* This is the default global sigmask. */
+static sigset_t sigmask;
+
 /* Forward declare some functions. */
 static int __sigprocmask(int __how, __const sigset_t *__restrict __set,
                          sigset_t *__restrict __oset);
+static void __incoming_signal(int signo);
 
 /* The default definition of signal_ops (similar to sched_ops in uthread.c) */
 struct signal_ops default_signal_ops = {
 	.sigprocmask = __sigprocmask,
+	.incoming_signal = __incoming_signal,
 };
 struct signal_ops *signal_ops = &default_signal_ops;
 
@@ -215,25 +221,32 @@ void trigger_posix_signal(int sig_nr, struct siginfo *info, void *aux)
 static void handle_event(struct event_msg *ev_msg, unsigned int ev_type,
                          void *data)
 {
-	int sig_nr;
-	struct siginfo info = {0};
-	info.si_code = SI_USER;
-
 	assert(ev_msg);
-	sig_nr = ev_msg->ev_arg1;
-	trigger_posix_signal(sig_nr, &info, 0);
+	signal_ops->incoming_signal(ev_msg->ev_arg1);
+}
+
+static void __incoming_signal(int sig_nr)
+{
+	if (!__sigismember(&sigmask, sig_nr)) {
+		struct siginfo info = {0};
+
+		info.si_code = SI_USER;
+		trigger_posix_signal(sig_nr, &info, 0);
+	}
 }
 
 /* Called from uthread_slim_init() */
 void init_posix_signals(void)
 {
 	struct event_queue *posix_sig_ev_q;
+
 	register_ev_handler(EV_POSIX_SIGNAL, handle_event, 0);
 	posix_sig_ev_q = get_eventq(EV_MBOX_UCQ);
 	assert(posix_sig_ev_q);
 	posix_sig_ev_q->ev_flags = EVENT_IPI | EVENT_INDIR | EVENT_SPAM_INDIR |
 	                           EVENT_WAKEUP;
 	register_kevent_q(posix_sig_ev_q, EV_POSIX_SIGNAL);
+	sigmask = 0;
 	wfl_init(&sigdata_list);
 }
 
@@ -267,11 +280,33 @@ int sigismember(__const sigset_t *__set, int __signo)
 	return 0;
 }
 
-static int __sigprocmask(int __how, __const sigset_t *__restrict __set,
-                         sigset_t *__restrict __oset)
+static int __sigprocmask(int how, __const sigset_t *__restrict set,
+                         sigset_t *__restrict oset)
 {
-	printf("Function not supported generically! "
-           "Use 2LS specific function e.g. pthread_sigmask\n");
+	if (set && (how != SIG_BLOCK) &&
+	           (how != SIG_SETMASK) &&
+	           (how != SIG_UNBLOCK)) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (oset)
+		*oset = sigmask;
+	if (set) {
+		switch (how) {
+			case SIG_BLOCK:
+				sigmask = sigmask | *set;
+				break;
+			case SIG_SETMASK:
+				sigmask = *set;
+				break;
+			case SIG_UNBLOCK:
+				sigmask = sigmask & ~(*set);
+				break;
+		}
+	}
+	/* Ensures signals we just unmasked get processed if they are pending */
+	sched_yield();
 	return 0;
 }
 
