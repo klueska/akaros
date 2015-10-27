@@ -1150,14 +1150,20 @@ static int sys_notify(struct proc *p, int target_pid, unsigned int ev_type,
 	return 0;
 }
 
-/* Will notify the calling process on the given vcore, independently of WANTED
- * or advertised vcoreid.  If you change the parameters, change pop_user_ctx().
+/* Will notify the calling process on the given vcore, independent of WANTED
+ * or advertised vcoreid.  If vcoreid = -1, notify on the current vcore. If
+ * you change the parameters, change pop_user_ctx().
  */
 static int sys_self_notify(struct proc *p, uint32_t vcoreid,
                            unsigned int ev_type, struct event_msg *u_msg,
                            bool priv)
 {
 	struct event_msg local_msg = {0};
+
+	/* If vcoreid = -1, notify on the current vcore. */
+	if (vcoreid == -1) {
+		vcoreid = p->procinfo->pcoremap[core_id()].vcoreid;
+	}
 	/* if the user provided an ev_msg, copy it in and use that */
 	if (u_msg) {
 		if (memcpy_from_user(p, &local_msg, u_msg, sizeof(struct event_msg))) {
