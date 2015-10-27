@@ -364,25 +364,16 @@ static struct block *pipebread(struct chan *c, long n, uint32_t offset)
 }
 
 /*
- *  a write to a closed pipe causes an exception to be sent to
- *  the prog.
+ *  A write to a closed pipe causes an EPIPE error to be thrown.
  */
 static long pipewrite(struct chan *c, void *va, long n, int64_t ignored)
 {
 	ERRSTACK(2);
 	Pipe *p;
-	//Prog *r;
 
 	if (waserror()) {
-		/* avoid exceptions when pipe is a mounted queue */
-		if ((c->flag & CMSG) == 0) {
-/*
-			r = up->iprog;
-			if(r != NULL && r->kill == NULL)
-				r->kill = "write on closed pipe";
-*/
-		}
-		nexterror();
+		poperror();
+		error(EPIPE, NULL);
 	}
 
 	p = c->aux;
@@ -409,18 +400,10 @@ static long pipebwrite(struct chan *c, struct block *bp, uint32_t junk)
 	ERRSTACK(2);
 	long n;
 	Pipe *p;
-	//Prog *r;
 
 	if (waserror()) {
-		/* avoid exceptions when pipe is a mounted queue */
-/*
-		if((c->flag & CMSG) == 0) {
-			r = up->iprog;
-			if(r != NULL && r->kill == NULL)
-				r->kill = "write on closed pipe";
-		}
-*/
-		nexterror();
+		poperror();
+		error(EPIPE, NULL);
 	}
 
 	p = c->aux;
